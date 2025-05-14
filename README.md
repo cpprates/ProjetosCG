@@ -13,3 +13,8 @@ make
 ./Hello3D
 ./SpherePhont
 ./TriangleTex
+```
+
+### Estrutura de Entrega
+
+Dentro de `/src` começando pela pasta `Tarefa1`
