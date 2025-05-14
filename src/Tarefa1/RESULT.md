@@ -1,9 +1,5 @@
 Prints da Tarefa 1:
 
-```markdown
-![Rotate X](images/TriangleX.png)
-```
+![Rotate X](https://github.com/cpprates/ProjetosCG/blob/main/src/Tarefa1/images/TriangleX.png?raw=true)
 
-```markdown
-![Rotate Y](images/TriangleY.png)
-```
+![Rotate Y](https://github.com/cpprates/ProjetosCG/blob/main/src/Tarefa1/images/TriangleY.png?raw=true)
