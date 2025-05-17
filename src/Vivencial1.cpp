@@ -24,7 +24,6 @@ const GLuint WIDTH = 1000, HEIGHT = 1000;
 std::vector<Object3D> objects;
 int selected = 0;
 
-// Shader (vertex/fragment) igual ao já existente
 extern const char* vertexShaderSource;
 extern const char* fragmentShaderSource;
 
