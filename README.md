@@ -17,4 +17,9 @@ make
 
 ### Estrutura de Entrega
 
-Dentro de `/src` começando pela pasta `Tarefa1`
+Dentro de `/src` tem as pastas das atividades realizadas
+
+#### Atividades entregues
+
+* `src/Tarefa1` entregue dia 13/05/2025
+* `src/Vivencial1` entregue dia 17/05/2025
