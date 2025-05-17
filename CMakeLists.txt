@@ -47,7 +47,8 @@ set(EXERCISES
     Hello3D
     TriangleTex
     SpherePhong
-   
+    Suzanne3DExemplo  
+    Vivencial1
 )
 
 add_compile_options(-Wno-pragmas)
@@ -76,4 +77,11 @@ foreach(EXERCISE ${EXERCISES})
     add_executable(${EXERCISE} src/${EXERCISE}.cpp ${GLAD_C_FILE})
     target_include_directories(${EXERCISE} PRIVATE ${CMAKE_SOURCE_DIR}/include/glad ${glm_SOURCE_DIR} ${stb_image_SOURCE_DIR})
     target_link_libraries(${EXERCISE} glfw ${OPENGL_LIBS})
+endforeach()
+
+file(GLOB SHADERS "${CMAKE_SOURCE_DIR}/shaders/*")
+
+foreach(SHADER ${SHADERS})
+    get_filename_component(SHADER_NAME ${SHADER} NAME)
+    configure_file(${SHADER} ${CMAKE_BINARY_DIR}/shaders/${SHADER_NAME} COPYONLY)
 endforeach()
