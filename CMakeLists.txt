@@ -49,6 +49,7 @@ set(EXERCISES
     SpherePhong
     Suzanne3DExemplo  
     Vivencial1
+    AtividadeM3
 )
 
 add_compile_options(-Wno-pragmas)
