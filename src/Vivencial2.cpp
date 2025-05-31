@@ -1,0 +1,399 @@
+#include <iostream>
+#include <vector>
+#include <string>
+#include <glad/glad.h>
+#include <GLFW/glfw3.h>
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
+#include <assert.h>
+#include <fstream>
+#include <sstream>
+
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+
+using namespace std;
+
+struct Object3D {
+    GLuint vao;
+    GLuint textureID;
+    int vertexCount;
+    glm::vec3 position{0.0f};
+    glm::vec3 rotation{0.0f};
+    glm::vec3 scale{1.0f};
+};
+
+struct Light {
+    glm::vec3 position;
+    glm::vec3 color;
+    bool enabled;
+};
+
+Light keyLight = {
+    glm::vec3(5.0f, 5.0f, 5.0f),
+    glm::vec3(1.0f), 
+    true};               // Key Light
+
+Light fillLight = {
+    glm::vec3(-5.0f, 2.0f, 3.0f),
+    glm::vec3(0.5f),
+    true};             // Fill Light
+
+Light backLight = {
+    glm::vec3(0.0f, 5.0f, -5.0f),
+    glm::vec3(0.3f, 0.3f, 0.7f),
+    true}; // Back Light
+
+const GLuint WIDTH = 1000, HEIGHT = 1000;
+std::vector<Object3D> objects;
+
+std::vector<Light> lights = { keyLight, fillLight, backLight };
+int selected = 0;
+
+glm::vec3 cameraPosition = glm::vec3(0.0f, 0.0f, 10.0f);
+
+extern const char* vertexShaderSource;
+extern const char* fragmentShaderSource;
+
+void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods);
+
+const char* vertexShaderSource = R"(
+#version 330 core
+
+layout(location = 0) in vec3 aPos;
+layout(location = 1) in vec3 aColor;
+layout(location = 2) in vec2 aTexCoord;
+layout(location = 3) in vec3 aNormal;
+
+out vec3 Color;
+out vec2 TexCoord;
+out vec3 FragPos;
+out vec3 Normal;
+
+uniform mat4 model;
+uniform mat4 view;
+uniform mat4 projection;
+
+void main() {
+    FragPos = vec3(model * vec4(aPos, 1.0));
+    Normal = mat3(transpose(inverse(model))) * aNormal;
+    TexCoord = aTexCoord;
+    Color = aColor;
+
+    gl_Position = projection * view * vec4(FragPos, 1.0);
+}
+)";
+
+const char* fragmentShaderSource = R"(
+#version 330 core
+
+in vec3 Color;
+in vec2 TexCoord;
+in vec3 FragPos;
+in vec3 Normal;
+
+out vec4 FragColor;
+
+uniform sampler2D texture1;
+uniform vec3 lightPos;
+uniform vec3 lightColor;
+uniform vec3 viewPos;
+
+void main() {
+    // Propriedades do material
+    vec3 objectColor = Color * texture(texture1, TexCoord).rgb;
+
+    // Luz ambiente
+    float ambientStrength = 0.2;
+    vec3 ambient = ambientStrength * lightColor;
+
+    // Luz difusa
+    vec3 norm = normalize(Normal);
+    vec3 lightDir = normalize(lightPos - FragPos);
+    float diff = max(dot(norm, lightDir), 0.0);
+    vec3 diffuse = diff * lightColor;
+
+    // Combinando tudo
+    vec3 result = (ambient + diffuse) * objectColor;
+    FragColor = vec4(result, 1.0);
+}
+)";
+
+GLuint setupShader();
+
+GLuint loadTexture(const char* path) {
+    GLuint textureID;
+    glGenTextures(1, &textureID);
+    
+    int width, height, nrChannels;
+    unsigned char* data = stbi_load(path, &width, &height, &nrChannels, 0);
+
+    if (data) {
+        GLenum format = nrChannels == 4 ? GL_RGBA : GL_RGB;
+        glBindTexture(GL_TEXTURE_2D, textureID);
+        
+        glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
+        glGenerateMipmap(GL_TEXTURE_2D);
+        
+        // Wrapping / Filtering
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);	
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+        stbi_image_free(data);
+    } else {
+        std::cout << "Failed to load texture: " << path << std::endl;
+        stbi_image_free(data);
+    }
+
+    return textureID;
+}
+
+int loadSimpleOBJ(string filePath, int &nVertices, GLuint &textureID)
+{
+    vector<glm::vec3> vertices;
+    vector<glm::vec2> texCoords;
+    vector<glm::vec3> normals;
+    vector<GLfloat> vBuffer;
+    string mtlFileName;
+	string textureName;
+
+    ifstream arqEntrada(filePath);
+    if (!arqEntrada.is_open()) {
+        cout << "Erro ao tentar ler o arquivo " << filePath << endl;
+        return -1;
+    }
+
+    string line;
+    while (getline(arqEntrada, line)) {
+        istringstream ssline(line);
+        string word;
+        ssline >> word;
+
+        if (word == "mtllib")
+        {
+            // pega o nome do arquivo .mtl
+            ssline >> mtlFileName;
+
+            // le o arquivo .mtl para pegar a textura
+            ifstream mtlFile("../assets/Modelos3D/" + mtlFileName);
+            if (mtlFile.is_open())
+            {
+                string mtlLine;
+                while (getline(mtlFile, mtlLine))
+                {
+                    istringstream ssMtl(mtlLine);
+                    string mtlWord;
+                    ssMtl >> mtlWord;
+
+                    if (mtlWord == "map_Kd")
+                    {
+                        ssMtl >> textureName;
+                    }
+                }
+            }
+        }
+
+        if (word == "v") {
+            glm::vec3 vert;
+            ssline >> vert.x >> vert.y >> vert.z;
+            vertices.push_back(vert);
+        } else if (word == "vt") {
+            glm::vec2 vt;
+            ssline >> vt.x >> vt.y;
+            texCoords.push_back(vt);
+        } else if (word == "vn") {
+            glm::vec3 norm;
+            ssline >> norm.x >> norm.y >> norm.z;
+            normals.push_back(norm);
+        } else if (word == "f") {
+            while (ssline >> word) {
+                int vi, ti, ni;
+                sscanf(word.c_str(), "%d/%d/%d", &vi, &ti, &ni);
+                vi--; ti--; ni--;
+
+                glm::vec3 v = vertices[vi];
+                glm::vec2 t = texCoords[ti];
+                glm::vec3 norm = normals[ni];
+                t.y = 1.0f - t.y; // Invertendo Y para compatibilidade com OpenGL
+
+                vBuffer.push_back(v.x);
+                vBuffer.push_back(v.y);
+                vBuffer.push_back(v.z);
+
+                // cor qualquer para compatibilidade com layout antigo
+                vBuffer.push_back(1.0f);
+                vBuffer.push_back(1.0f);
+                vBuffer.push_back(1.0f);
+
+                vBuffer.push_back(t.x);
+                vBuffer.push_back(t.y);
+
+                // normal
+                vBuffer.push_back(norm.x);
+                vBuffer.push_back(norm.y);
+                vBuffer.push_back(norm.z);
+            }
+        }
+    }
+
+    GLuint VBO, VAO;
+    glGenBuffers(1, &VBO);
+    glGenVertexArrays(1, &VAO);
+
+    glBindVertexArray(VAO);
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBufferData(GL_ARRAY_BUFFER, vBuffer.size() * sizeof(GLfloat), vBuffer.data(), GL_STATIC_DRAW);
+
+    // posição
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 11 * sizeof(GLfloat), (void*)0);
+    glEnableVertexAttribArray(0);
+
+    // cor
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 11 * sizeof(GLfloat), (void*)(3 * sizeof(GLfloat)));
+    glEnableVertexAttribArray(1);
+
+    // textura
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 11 * sizeof(GLfloat), (void*)(6 * sizeof(GLfloat)));
+    glEnableVertexAttribArray(2);
+
+    // normal
+    glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, 11 * sizeof(GLfloat), (void*)(8 * sizeof(GLfloat)));
+    glEnableVertexAttribArray(3);
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+
+    textureID = 0;
+    if (!textureName.empty())
+    {
+        textureID = loadTexture(("../assets/Modelos3D/" + textureName).c_str());
+    }
+
+    nVertices = vBuffer.size() / 11;
+    return VAO;
+}
+
+int main() {
+    glfwInit();
+    GLFWwindow* window = glfwCreateWindow(WIDTH, HEIGHT, "CG - Vivencial 2 | Carolina Prates, Kevin Kuhn, Vitor Mello", nullptr, nullptr);
+    glfwMakeContextCurrent(window);
+    glfwSetKeyCallback(window, key_callback);
+    gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
+    glViewport(0, 0, WIDTH, HEIGHT);
+    glEnable(GL_DEPTH_TEST);
+
+    GLuint shaderProgram = setupShader();
+    GLint modelLoc = glGetUniformLocation(shaderProgram, "model");
+    GLint viewLoc = glGetUniformLocation(shaderProgram, "view");
+    GLint projLoc = glGetUniformLocation(shaderProgram, "projection");
+
+	glUseProgram(shaderProgram);
+
+    glUniform3fv(glGetUniformLocation(shaderProgram, "lights[0].position"), 1, glm::value_ptr(keyLight.position));
+    glUniform3fv(glGetUniformLocation(shaderProgram, "lights[0].color"),    1, glm::value_ptr(keyLight.color));
+
+    glUniform3fv(glGetUniformLocation(shaderProgram, "lights[1].position"), 1, glm::value_ptr(fillLight.position));
+    glUniform3fv(glGetUniformLocation(shaderProgram, "lights[1].color"),    1, glm::value_ptr(fillLight.color));
+
+    glUniform3fv(glGetUniformLocation(shaderProgram, "lights[2].position"), 1, glm::value_ptr(backLight.position));
+    glUniform3fv(glGetUniformLocation(shaderProgram, "lights[2].color"),    1, glm::value_ptr(backLight.color));
+
+    glUniform1i(glGetUniformLocation(shaderProgram, "texture1"), 0);
+
+    glm::mat4 view = glm::translate(glm::mat4(1.0f), glm::vec3(0, 0, -10.0f));
+    glm::mat4 projection = glm::perspective(glm::radians(45.0f), (float)WIDTH / HEIGHT, 0.1f, 100.0f);
+
+    // Carregar objetos
+    vector<string> paths = {"../assets/Modelos3D/Suzanne.obj"};
+    for (const auto& path : paths) {
+        Object3D obj;
+        GLuint tex;
+        obj.vao = loadSimpleOBJ(path, obj.vertexCount, tex);
+	    obj.textureID = tex;
+		// posicoes iniciais
+		obj.position = glm::vec3(0.0f, 0.0f, 0.0f);
+		obj.rotation = glm::vec3(0.0f, 0.0f, 0.0f);
+		obj.scale = glm::vec3(1.0f);
+
+        objects.push_back(obj);
+    }
+
+    while (!glfwWindowShouldClose(window)) {
+        glfwPollEvents();
+        glClearColor(0.9, 0.9, 0.9, 1);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        glUseProgram(shaderProgram);
+        glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
+        glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(projection));
+
+        for (int i = 0; i < objects.size(); ++i) {
+            Object3D& obj = objects[i];
+            glm::mat4 model = glm::mat4(1.0f);
+            model = glm::translate(model, obj.position);
+            model = glm::rotate(model, obj.rotation.x, glm::vec3(1, 0, 0));
+            model = glm::rotate(model, obj.rotation.y, glm::vec3(0, 1, 0));
+            model = glm::rotate(model, obj.rotation.z, glm::vec3(0, 0, 1));
+            model = glm::scale(model, obj.scale);
+
+            glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+            
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, obj.textureID);
+            
+            glBindVertexArray(obj.vao);
+            glDrawArrays(GL_TRIANGLES, 0, obj.vertexCount);
+        }
+
+        glfwSwapBuffers(window);
+    }
+
+    glfwTerminate();
+    return 0;
+}
+
+void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods) {
+    if (action != GLFW_PRESS) return;
+    Object3D& obj = objects[selected];
+
+    switch (key) {
+        case GLFW_KEY_TAB: selected = (selected + 1) % objects.size(); break;
+        case GLFW_KEY_X: obj.rotation.x += glm::radians(10.0f); break;
+        case GLFW_KEY_Y: obj.rotation.y += glm::radians(10.0f); break;
+        case GLFW_KEY_Z: obj.rotation.z += glm::radians(10.0f); break;
+        case GLFW_KEY_W: obj.position.z -= 0.1f; break;
+        case GLFW_KEY_S: obj.position.z += 0.1f; break;
+        case GLFW_KEY_A: obj.position.x -= 0.1f; break;
+        case GLFW_KEY_D: obj.position.x += 0.1f; break;
+        case GLFW_KEY_Q: obj.position.y += 0.1f; break;
+        case GLFW_KEY_E: obj.position.y -= 0.1f; break;
+        case GLFW_KEY_KP_ADD: obj.scale *= 1.1f; break;
+        case GLFW_KEY_KP_SUBTRACT: obj.scale *= 0.9f; break;
+        case GLFW_KEY_1: lights[0].enabled = !lights[0].enabled; break;
+        case GLFW_KEY_2: lights[1].enabled = !lights[1].enabled; break;
+        case GLFW_KEY_3: lights[2].enabled = !lights[2].enabled; break;
+        case GLFW_KEY_ESCAPE: glfwSetWindowShouldClose(window, true); break;
+    }
+}
+
+GLuint setupShader() {
+    GLuint vShader = glCreateShader(GL_VERTEX_SHADER);
+    glShaderSource(vShader, 1, &vertexShaderSource, nullptr);
+    glCompileShader(vShader);
+
+    GLuint fShader = glCreateShader(GL_FRAGMENT_SHADER);
+    glShaderSource(fShader, 1, &fragmentShaderSource, nullptr);
+    glCompileShader(fShader);
+
+    GLuint shaderProgram = glCreateProgram();
+    glAttachShader(shaderProgram, vShader);
+    glAttachShader(shaderProgram, fShader);
+    glLinkProgram(shaderProgram);
+
+    glDeleteShader(vShader);
+    glDeleteShader(fShader);
+    return shaderProgram;
+}

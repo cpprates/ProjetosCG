@@ -50,6 +50,8 @@ set(EXERCISES
     Suzanne3DExemplo  
     Vivencial1
     AtividadeM3
+    Kevin
+    Vivencial2
 )
 
 add_compile_options(-Wno-pragmas)
