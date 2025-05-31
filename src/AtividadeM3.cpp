@@ -17,6 +17,7 @@ using namespace std;
 
 struct Object3D {
     GLuint vao;
+    GLuint textureID;
     int vertexCount;
     glm::vec3 position{0.0f};
     glm::vec3 rotation{0.0f};
@@ -69,12 +70,43 @@ void main()
 
 GLuint setupShader();
 
-int loadSimpleOBJ(string filePath, int &nVertices)
+GLuint loadTexture(const char* path) {
+    GLuint textureID;
+    glGenTextures(1, &textureID);
+    
+    int width, height, nrChannels;
+    unsigned char* data = stbi_load(path, &width, &height, &nrChannels, 0);
+
+    if (data) {
+        GLenum format = nrChannels == 4 ? GL_RGBA : GL_RGB;
+        glBindTexture(GL_TEXTURE_2D, textureID);
+        
+        glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
+        glGenerateMipmap(GL_TEXTURE_2D);
+        
+        // Wrapping / Filtering
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);	
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+        stbi_image_free(data);
+    } else {
+        std::cout << "Failed to load texture: " << path << std::endl;
+        stbi_image_free(data);
+    }
+
+    return textureID;
+}
+
+int loadSimpleOBJ(string filePath, int &nVertices, GLuint &textureID)
 {
     vector<glm::vec3> vertices;
     vector<glm::vec2> texCoords;
     vector<glm::vec3> normals;
     vector<GLfloat> vBuffer;
+    string mtlFileName;
+	string textureName;
 
     ifstream arqEntrada(filePath);
     if (!arqEntrada.is_open()) {
@@ -87,6 +119,31 @@ int loadSimpleOBJ(string filePath, int &nVertices)
         istringstream ssline(line);
         string word;
         ssline >> word;
+
+        if (word == "mtllib")
+        {
+            // pega o nome do arquivo .mtl
+            ssline >> mtlFileName;
+
+            // le o arquivo .mtl para pegar a textura
+            ifstream mtlFile("../assets/Modelos3D/" + mtlFileName);
+            if (mtlFile.is_open())
+            {
+                string mtlLine;
+                while (getline(mtlFile, mtlLine))
+                {
+                    istringstream ssMtl(mtlLine);
+                    string mtlWord;
+                    ssMtl >> mtlWord;
+
+                    if (mtlWord == "map_Kd")
+                    {
+                        ssMtl >> textureName;
+                    }
+                }
+            }
+        }
+
         if (word == "v") {
             glm::vec3 vert;
             ssline >> vert.x >> vert.y >> vert.z;
@@ -107,6 +164,7 @@ int loadSimpleOBJ(string filePath, int &nVertices)
 
                 glm::vec3 v = vertices[vi];
                 glm::vec2 t = texCoords[ti];
+                t.y = 1.0f - t.y; // Invertendo Y para compatibilidade com OpenGL
 
                 vBuffer.push_back(v.x);
                 vBuffer.push_back(v.y);
@@ -146,37 +204,14 @@ int loadSimpleOBJ(string filePath, int &nVertices)
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
 
-    nVertices = vBuffer.size() / 8;
-    return VAO;
-}
-
-GLuint loadTexture(const char* path) {
-    GLuint textureID;
-    glGenTextures(1, &textureID);
-    
-    int width, height, nrChannels;
-    unsigned char* data = stbi_load(path, &width, &height, &nrChannels, 0);
-
-    if (data) {
-        GLenum format = nrChannels == 4 ? GL_RGBA : GL_RGB;
-        glBindTexture(GL_TEXTURE_2D, textureID);
-        
-        glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
-        glGenerateMipmap(GL_TEXTURE_2D);
-        
-        // Wrapping / Filtering
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);	
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-        stbi_image_free(data);
-    } else {
-        std::cout << "Failed to load texture: " << path << std::endl;
-        stbi_image_free(data);
+    textureID = 0;
+    if (!textureName.empty())
+    {
+        textureID = loadTexture(("../assets/Modelos3D/" + textureName).c_str());
     }
 
-    return textureID;
+    nVertices = vBuffer.size() / 8;
+    return VAO;
 }
 
 int main() {
@@ -193,7 +228,6 @@ int main() {
     GLint viewLoc = glGetUniformLocation(shaderProgram, "view");
     GLint projLoc = glGetUniformLocation(shaderProgram, "projection");
 
-	GLuint texture = loadTexture("../assets/tex/pixelWall.png");
 	glUseProgram(shaderProgram);
 	glUniform1i(glGetUniformLocation(shaderProgram, "texture1"), 0);
 
@@ -201,13 +235,17 @@ int main() {
     glm::mat4 projection = glm::perspective(glm::radians(45.0f), (float)WIDTH / HEIGHT, 0.1f, 100.0f);
 
     // Carregar objetos
-    vector<string> paths = {        
-        "../assets/Modelos3D/Cube.obj",
-	    "../assets/Modelos3D/Suzanne.obj"
-    };
+    vector<string> paths = {"../assets/Modelos3D/Suzanne.obj"};
     for (const auto& path : paths) {
         Object3D obj;
-        obj.vao = loadSimpleOBJ(path, obj.vertexCount);
+        GLuint tex;
+        obj.vao = loadSimpleOBJ(path, obj.vertexCount, tex);
+	    obj.textureID = tex;
+		// posicoes iniciais
+		obj.position = glm::vec3(0.0f, 0.0f, 0.0f);
+		obj.rotation = glm::vec3(0.0f, 0.0f, 0.0f);
+		obj.scale = glm::vec3(1.0f);
+
         objects.push_back(obj);
     }
 
@@ -230,10 +268,12 @@ int main() {
             model = glm::scale(model, obj.scale);
 
             glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+            
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, obj.textureID);
+            
             glBindVertexArray(obj.vao);
             glDrawArrays(GL_TRIANGLES, 0, obj.vertexCount);
-			glActiveTexture(GL_TEXTURE0);
-			glBindTexture(GL_TEXTURE_2D, texture);
         }
 
         glfwSwapBuffers(window);
