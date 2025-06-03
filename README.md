@@ -5,13 +5,14 @@ Projetos da Disciplina de Computação Gráfica da Unisinos | Carolina Paz Prate
 
 Dentro de `/src` tem as pastas das atividades realizadas
 
-#### Atividades entregues
+### Atividades entregues
 
 * `src/Tarefa1` entregue dia 13/05/2025
 * `src/Vivencial1` entregue dia 17/05/2025
 * `src/AtividadeM3` entregue dia 30/05/2025
+* `src/Vivencial2` entregue dia 31/05/2025
 
-## Como rodar
+### Como rodar
 
 Altera o nome do arquivo `.cpp` conforme necessidade
 

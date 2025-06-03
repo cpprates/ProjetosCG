@@ -50,7 +50,7 @@ set(EXERCISES
     Suzanne3DExemplo  
     Vivencial1
     AtividadeM3
-    Kevin
+    TesteViv2
     Vivencial2
 )
 
