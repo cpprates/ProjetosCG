@@ -7,7 +7,8 @@ Dentro de `/src` tem as pastas das atividades realizadas
 
 ### Atividades entregues
 
-* `src/Tarefa1` entregue dia 13/05/2025
+* `src/AtividadeM1` entregue dia 13/05/2025
+* `src/AtividadeM2` entregue dia 08/06/2025
 * `src/Vivencial1` entregue dia 17/05/2025
 * `src/AtividadeM3` entregue dia 30/05/2025
 * `src/Vivencial2` entregue dia 31/05/2025
@@ -21,6 +22,4 @@ cd build/
 cmake .. 
 make 
 ./Hello3D
-./SpherePhont
-./TriangleTex
 ```

@@ -52,7 +52,7 @@ make
 
 Comandos do teclado para transladar e movimentar os objetos: `A`, `W`, `S`, `D`, `I`, `J`
 
-Comandos do teclado para promover escala uniforme dos cubos: `[`, `[` 
+Comandos do teclado para promover escala uniforme dos cubos: `[`, `]` 
 
 ## Print do Programa em Execução
 
