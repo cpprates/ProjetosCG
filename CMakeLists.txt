@@ -52,7 +52,7 @@ set(EXERCISES
     AtividadeM3
     TesteViv2
     Vivencial2
-    Hello3DCube
+    AtividadeM2
 )
 
 add_compile_options(-Wno-pragmas)
