@@ -35,7 +35,9 @@ No loop da janela do `main` também foi alterado o bind da textura para passar a
 
 #### Objetivo 2 (final)
 
-O objetivo de adicionar a textura a partir do arquivo .mtl foi atingida através das alterações citadas e a Suzanne finalmente ganhou uma cara, o que foi emocionante! Só não adicionei o cubo pois ele não tinha as informações de textura, mas tentarei nas próximas.
+O objetivo de adicionar a textura a partir do arquivo .mtl foi atingida através das alterações citadas e a Suzanne finalmente ganhou uma cara, o que foi emocionante!
+
+PS: Consegui adicionar o Cubo com a textura no obj e ficou tri demais. (data: 08/06/2025)
 
 ## Como rodar
 
@@ -66,3 +68,7 @@ Comandos do teclado para alterar objetos: `tab`
 ### Segunda versão da textura
 
 ![Texturizado v2](https://github.com/cpprates/ProjetosCG/blob/main/src/AtividadeM3/images/AtividadeM3-v2.png?raw=true)
+
+### Segunda versão da textura com dois objetos
+
+![Texturizado v3](https://github.com/cpprates/ProjetosCG/blob/main/src/AtividadeM3/images/AtividadeM3-v3.png?raw=true)
