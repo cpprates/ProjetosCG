@@ -53,6 +53,7 @@ set(EXERCISES
     TesteViv2
     Vivencial2
     AtividadeM2
+    AtividadeM4
 )
 
 add_compile_options(-Wno-pragmas)
