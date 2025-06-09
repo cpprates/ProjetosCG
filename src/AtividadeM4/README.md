@@ -76,6 +76,6 @@ Comandos do teclado para transladar e movimentar os objetos: `A`, `W`, `S`, `D`,
 
 ### Print do Programa em Execução
 
-![Phong1](https://github.com/cpprates/ProjetosCG/blob/main/src/AtividadeM3/images/AtividadeM4-1.png?raw=true)
+![Phong1](https://github.com/cpprates/ProjetosCG/blob/main/src/AtividadeM4/images/AtividadeM4-1.png?raw=true)
 
-![Phong2](https://github.com/cpprates/ProjetosCG/blob/main/src/AtividadeM3/images/AtividadeM4-2.png?raw=true)
+![Phong2](https://github.com/cpprates/ProjetosCG/blob/main/src/AtividadeM4/images/AtividadeM4-2.png?raw=true)
