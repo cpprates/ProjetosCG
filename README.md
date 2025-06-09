@@ -1,9 +1,12 @@
 # ProjetosCG
-Projetos da Disciplina de Computação Gráfica da Unisinos | Carolina Paz Prates
+Projetos da Disciplina de Computação Gráfica da Unisinos
+
+> Carolina Paz Prates
 
 ## Estrutura de Entrega
 
-Dentro de `/src` tem as pastas das atividades realizadas
+Dentro de `/src/...` tem as pastas das atividades realizadas.
+Os arquivos fonte `.cpp` de cada atividade estão em `/src`.
 
 ### Atividades entregues
 
@@ -13,8 +16,9 @@ Dentro de `/src` tem as pastas das atividades realizadas
 * `src/AtividadeM3` entregue dia 30/05/2025
 * `src/AtividadeM4` entregue dia 09/06/2025
 * `src/Vivencial2` entregue dia 31/05/2025
+* `src/AtividadeM5` entregue dia 09/06/2025
 
-### Como rodar
+## Como executar os projetos
 
 Altera o nome do arquivo `.cpp` conforme necessidade
 

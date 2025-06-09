@@ -13,6 +13,15 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
+#include "../include/Camera.h" 
+
+Camera camera(
+    glm::vec3(0.0f, 0.0f, 3.0f),  // position
+    glm::vec3(0.0f, 1.0f, 0.0f),  // up
+    -90.0f,                       // yaw
+    0.0f                          // pitch
+);
+
 using namespace std;
 
 struct Material {
@@ -34,21 +43,15 @@ struct Object3D {
 
 const GLuint WIDTH = 1000, HEIGHT = 1000;
 
-glm::vec3 cameraPos   = glm::vec3(0.0f, 0.0f, 3.0f);
-glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, -1.0f);
-glm::vec3 cameraUp    = glm::vec3(0.0f, 1.0f, 0.0f);
 glm::vec3 front;
 
 bool firstMouse = true;
-float yaw = -90.0f; // Inicia olhando para a esquerda
-float pitch = 0.0f; // Inicia com a câmera nivelada
+
 float lastX = WIDTH / 2.0f;
 float lastY = HEIGHT / 2.0f;
 
 float deltaTime = 0.0f; // Tempo entre frames
 float lastFrame = 0.0f; // Tempo do último frame
-
-float fov = 45.0f; // Campo de visão
 
 std::vector<Object3D> objects;
 int selected = 0;
@@ -331,16 +334,13 @@ int main() {
 	glUniform3fv(glGetUniformLocation(shaderProgram, "light.diffuse"), 1, glm::value_ptr(glm::vec3(0.7f)));
 	glUniform3fv(glGetUniformLocation(shaderProgram, "light.specular"), 1, glm::value_ptr(glm::vec3(1.0f)));
     // Definindo a posição da câmera
-	glUniform3fv(glGetUniformLocation(shaderProgram, "viewPos"), 1, glm::value_ptr(cameraPos));
+	glUniform3fv(glGetUniformLocation(shaderProgram, "viewPos"), 1, glm::value_ptr(camera.Position));
 
 	GLint modelLoc = glGetUniformLocation(shaderProgram, "model");
     GLint viewLoc = glGetUniformLocation(shaderProgram, "view");
     GLint projLoc = glGetUniformLocation(shaderProgram, "projection");
 
 	glUniform1i(glGetUniformLocation(shaderProgram, "texture1"), 0);
-
-    glm::mat4 view = glm::translate(glm::mat4(1.0f), glm::vec3(0, 0, -10.0f));
-    glm::mat4 projection = glm::perspective(glm::radians(fov), (float)WIDTH / HEIGHT, 0.1f, 100.0f);
 
 	glUniform3f(glGetUniformLocation(shaderProgram, "light.position"), 1.2f, 1.0f, 2.0f);
 
@@ -365,25 +365,27 @@ int main() {
         glClearColor(0.9, 0.9, 0.9, 1);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        glUseProgram(shaderProgram);
-		glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
-		glm::mat4 projection = glm::perspective(glm::radians(fov), (float)WIDTH/HEIGHT, 0.1f, 100.0f);
-        glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
-        glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(projection));
-
         float currentFrame = glfwGetTime();
         deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
 
         processInput(window);
 
+        glUseProgram(shaderProgram);
+        
+		glm::mat4 view = camera.GetViewMatrix();
+		glm::mat4 projection = glm::perspective(glm::radians(camera.Zoom), (float)WIDTH/HEIGHT, 0.1f, 100.0f);
+        
+        glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
+        glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(projection));
+
         for (int i = 0; i < objects.size(); ++i) {
             Object3D& obj = objects[i];
             glm::mat4 model = glm::mat4(1.0f);
             model = glm::translate(model, obj.position);
-            model = glm::rotate(model, obj.rotation.x, glm::vec3(1, 0, 0));
-            model = glm::rotate(model, obj.rotation.y, glm::vec3(0, 1, 0));
-            model = glm::rotate(model, obj.rotation.z, glm::vec3(0, 0, 1));
+            model = glm::rotate(model, glm::radians(obj.rotation.x), glm::vec3(1, 0, 0));
+            model = glm::rotate(model, glm::radians(obj.rotation.y), glm::vec3(0, 1, 0));
+            model = glm::rotate(model, glm::radians(obj.rotation.z), glm::vec3(0, 0, 1));
             model = glm::scale(model, obj.scale);
                         
             glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
@@ -392,7 +394,7 @@ int main() {
 			glUniform3fv(glGetUniformLocation(shaderProgram, "material.ambient"), 1, glm::value_ptr(obj.material.ambient));
 			glUniform3fv(glGetUniformLocation(shaderProgram, "material.diffuse"), 1, glm::value_ptr(obj.material.diffuse));
 			glUniform3fv(glGetUniformLocation(shaderProgram, "material.specular"), 1, glm::value_ptr(obj.material.specular));
-            glUniform3fv(glGetUniformLocation(shaderProgram, "viewPos"), 1, glm::value_ptr(cameraPos));
+            glUniform3fv(glGetUniformLocation(shaderProgram, "viewPos"), 1, glm::value_ptr(camera.Position));
 			glUniform1f(glGetUniformLocation(shaderProgram, "material.shininess"), obj.material.shininess);
 
 			glActiveTexture(GL_TEXTURE0);
@@ -428,16 +430,17 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
 }
 
 void processInput(GLFWwindow* window) {
-    float cameraSpeed = 2.5f * deltaTime;
+    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+        glfwSetWindowShouldClose(window, true);
 
     if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
-        cameraPos += cameraSpeed * cameraFront;
+        camera.ProcessKeyboard(FORWARD, deltaTime);
     if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
-        cameraPos -= cameraSpeed * cameraFront;
+        camera.ProcessKeyboard(BACKWARD, deltaTime);
     if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
-        cameraPos -= glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
+        camera.ProcessKeyboard(LEFT, deltaTime);
     if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
-        cameraPos += glm::normalize(glm::cross(cameraFront, cameraUp)) * cameraSpeed;
+        camera.ProcessKeyboard(RIGHT, deltaTime);
 }
 
 void mouse_callback(GLFWwindow* window, double xpos, double ypos) {
@@ -452,34 +455,11 @@ void mouse_callback(GLFWwindow* window, double xpos, double ypos) {
     lastX = xpos;
     lastY = ypos;
 
-    float sensitivity = 0.1f;
-    xoffset *= sensitivity;
-    yoffset *= sensitivity;
-
-    yaw += xoffset;
-    pitch += yoffset;
-
-    // Limitar o pitch para evitar rotação excessiva
-    if (pitch > 89.0f) pitch = 89.0f;
-    if (pitch < -89.0f) pitch = -89.0f;
-
-    glm::vec3 front;
-    front.x = cos(glm::radians(pitch)) * cos(glm::radians(yaw));
-    front.y = sin(glm::radians(pitch));
-    front.z = cos(glm::radians(pitch)) * sin(glm::radians(yaw));
-    cameraFront = glm::normalize(front);
-
-    glm::vec3 right = glm::normalize(glm::cross(cameraFront, cameraUp));
-    cameraUp = glm::normalize(glm::cross(right, cameraFront)); // Recalcular o vetor up para manter a ortogonalidade
+    camera.ProcessMouseMovement(xoffset, yoffset);
 }
 
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
-    fov -= (float)yoffset;
-    
-    if (fov < 1.0f)
-        fov = 1.0f;
-    if (fov > 90.0f)
-        fov = 90.0f;
+    camera.ProcessMouseScroll(yoffset);
 }
 
 GLuint setupShader() {

@@ -78,9 +78,17 @@ if (NOT EXISTS ${GLAD_C_FILE})
     message(FATAL_ERROR "Arquivo glad.c não encontrado! Baixe a GLAD manualmente em https://glad.dav1d.de/ e coloque glad.h em include/glad/ e glad.c em common/")
 endif()
 
+set(EXERCISES_USING_CAMERA
+    AtividadeM5
+)
+
 # Cria os executáveis
 foreach(EXERCISE ${EXERCISES})
-    add_executable(${EXERCISE} src/${EXERCISE}.cpp ${GLAD_C_FILE})
+    set(SOURCES src/${EXERCISE}.cpp ${GLAD_C_FILE})
+    if (EXERCISE IN_LIST EXERCISES_USING_CAMERA)
+        list(APPEND SOURCES common/Camera.cpp)
+    endif()
+    add_executable(${EXERCISE} ${SOURCES})
     target_include_directories(${EXERCISE} PRIVATE ${CMAKE_SOURCE_DIR}/include/glad ${glm_SOURCE_DIR} ${stb_image_SOURCE_DIR})
     target_link_libraries(${EXERCISE} glfw ${OPENGL_LIBS})
 endforeach()
