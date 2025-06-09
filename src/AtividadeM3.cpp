@@ -235,7 +235,9 @@ int main() {
     glm::mat4 projection = glm::perspective(glm::radians(45.0f), (float)WIDTH / HEIGHT, 0.1f, 100.0f);
 
     // Carregar objetos
-    vector<string> paths = {"../assets/Modelos3D/Suzanne.obj"};
+    vector<string> paths = {
+        "../assets/Modelos3D/Suzanne.obj",
+        "../assets/Modelos3D/Cube.obj"};
     for (const auto& path : paths) {
         Object3D obj;
         GLuint tex;
