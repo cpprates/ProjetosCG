@@ -1,0 +1,7 @@
+newmtl ovni_mat
+Ka 0.2 0.2 0.2
+Kd 0.7 0.7 0.7
+Ks 0.5 0.5 0.5
+Ns 64
+illum 2
+map_Kd ovni.png

@@ -55,6 +55,8 @@ set(EXERCISES
     AtividadeM2
     AtividadeM4
     AtividadeM5
+    AtividadeM6
+    CenaFinal
 )
 
 add_compile_options(-Wno-pragmas)
@@ -80,6 +82,7 @@ endif()
 
 set(EXERCISES_USING_CAMERA
     AtividadeM5
+    AtividadeM6
 )
 
 # Cria os executáveis
