@@ -18,6 +18,8 @@
 using namespace std;
 using namespace glm;
 
+map<string, string> config;
+
 struct Vertex
 {
     vec3 position;
@@ -53,6 +55,46 @@ float ovniY = 5.0f, vacaY = 0.0f;
 float alturaAbducao = 5.0f, alturaFuga = 15.0f;
 float vacaX = 0.0f;
 float curvaAmplitude = 1.0f; // raio da curva no plano XZ
+
+void loadConfig(const string& filename) {
+    ifstream file(filename);
+    string line;
+    string section;
+    while (getline(file, line)) {
+        if (line.empty() || line[0] == '#') continue;
+
+        if (line[0] == '[') {
+            section = line.substr(1, line.find(']') - 1);
+            continue;
+        }
+
+        size_t eq = line.find('=');
+        if (eq == string::npos) continue;
+
+        string key = line.substr(0, eq);
+        string value = line.substr(eq + 1);
+
+        string fullKey = section.empty() ? key : section + "." + key;
+        config[fullKey] = value;
+    }
+}
+
+float getFloat(const string& key, float def) {
+    return config.count(key) ? stof(config[key]) : def;
+}
+
+vec3 getVec3(const string& key, vec3 def) {
+    if (!config.count(key)) return def;
+    stringstream ss(config[key]);
+    float x, y, z;
+    char sep; // ignora vírgulas
+    ss >> x >> sep >> y >> sep >> z;
+    return vec3(x, y, z);
+}
+
+string getString(const string& key, const string& def) {
+    return config.count(key) ? config[key] : def;
+}
 
 // ============== CAMERA ==============
 class Camera
@@ -272,7 +314,7 @@ GLuint loadTexture(const string &path) {
 void initSkybox()
 {
     glGenVertexArrays(1, &quadVAO);
-    skyboxTexture = loadTexture("../assets/Modelos3D/final/ceu.png");
+    skyboxTexture = loadTexture(getString("texturas.textura_ceu", "../assets/Modelos3D/final/ceu.png"));
     skyboxShader = compileSkyboxShader();
 }
 
@@ -421,9 +463,20 @@ void processInput(GLFWwindow *window)
     }
 }
 
+void carregarJanela(GLFWwindow*& w) {
+    int width = (int)getFloat("window.width", 800);
+    int height = (int)getFloat("window.height", 600);
+    string title = getString("window.title", "OVNI vs Vaca");
+
+    w = glfwCreateWindow(width, height, title.c_str(), NULL, NULL);
+}
+
 int main() {
     glfwInit();
-    GLFWwindow* w = glfwCreateWindow(800, 600, "OVNI vs Vaca", NULL, NULL);
+    loadConfig("config.ini");
+    // GLFWwindow* w = glfwCreateWindow(800, 600, "OVNI vs Vaca", NULL, NULL);
+    GLFWwindow* w;
+    carregarJanela(w);
     glfwMakeContextCurrent(w);
     gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
     glfwSetInputMode(w, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
@@ -434,11 +487,16 @@ int main() {
     glPolygonOffset(2.0f, 2.0f);
 
     shaderProgram = compileShader();
+
+    alturaAbducao = getFloat("alturas.abducao", 5.0f);
+    alturaFuga = getFloat("alturas.fuga", 15.0f);
+    curvaAmplitude = getFloat("curvas.amplitude", 1.0f);
+
     initSkybox();
 
-    loadModel("../assets/Modelos3D/final/Nave.obj", ovni);
-    loadModel("../assets/Modelos3D/final/vaca.obj", vaca);
-    loadModel("../assets/Modelos3D/final/casa.obj", casa);
+    loadModel(getString("modelo_paths.ovni", "../assets/Modelos3D/final/Nave.obj"), ovni);
+    loadModel(getString("modelo_paths.vaca", "../assets/Modelos3D/final/vaca.obj"), vaca);
+    loadModel(getString("modelo_paths.casa", "../assets/Modelos3D/final/casa.obj"), casa);
 
     // ==== CHÃO ====
     vector<Vertex> chaoVerts = {
@@ -450,11 +508,11 @@ int main() {
         {{-50.0f, 0.0f,  50.0f}, {0.0f, 1.0f}, {0.0f, 1.0f, 0.0f}},
     };
     chao.vertexCount = chaoVerts.size();
-    chao.textura = loadTexture("../assets/Modelos3D/final/grama.png");
-    chao.material.ka = vec3(0.2f);
-    chao.material.kd = vec3(0.8f);
-    chao.material.ks = vec3(0.1f);
-    chao.material.shininess = 8.0f;
+    chao.textura = loadTexture(getString("texturas.textura_chao", "../assets/Modelos3D/final/grama.png"));
+    chao.material.ka = getVec3("chao_ka", vec3(0.2f));
+    chao.material.kd = getVec3("chao_kd", vec3(0.8f));
+    chao.material.ks = getVec3("chao_ks", vec3(0.1f));
+    chao.material.shininess = getFloat("chao_shininess", 8.0f);
     glGenVertexArrays(1, &chao.VAO);
     glGenBuffers(1, &chao.VBO);
     glBindVertexArray(chao.VAO);
@@ -538,17 +596,17 @@ int main() {
         vec3 vacaPos = vec3(0, vacaY, 0);
 
         if (casaLuz) {
-            ka = vec3(0.2f);
-            kd = vec3(1.5f);
-            ks = vec3(0.3f);
+            ka = getVec3("luz_casa.ka", vec3(0.2f));
+            kd = getVec3("luz_casa.kd", vec3(1.5f));
+            ks = getVec3("luz_casa.ks", vec3(0.3f));
             lightColor = vec3(1.0f);
             lightPos = vec3(5.0f, 1.5f, -6.5f); // dentro da casa
             vec3 dir = normalize(vacaPos - lightPos);
             glUniform3fv(glGetUniformLocation(shaderProgram, "lightDir"), 1, value_ptr(dir));
         } else {
-            ka = vec3(0.05f, 0.2f, 0.05f);
-            kd = vec3(0.2f, 1.0f, 0.2f);
-            ks = vec3(0.1f, 0.8f, 0.1f);
+            ka = getVec3("luz_ovni.ka", vec3(0.05f, 0.2f, 0.05f));
+            kd = getVec3("luz_ovni.kd", vec3(0.2f, 1.0f, 0.2f));
+            ks = getVec3("luz_ovni.ks", vec3(0.1f, 0.8f, 0.1f));
             lightColor = vec3(0.0f, 1.0f, 0.0f);
             lightPos = vec3(0, ovniY - 1.0f, 0);
             vec3 dir = normalize(vec3(0, -1, 0));

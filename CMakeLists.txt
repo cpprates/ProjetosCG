@@ -85,6 +85,9 @@ set(EXERCISES_USING_CAMERA
     AtividadeM6
 )
 
+# Copia config.ini para a pasta de build
+configure_file(${CMAKE_SOURCE_DIR}/config.ini ${CMAKE_BINARY_DIR}/config.ini COPYONLY)
+
 # Cria os executáveis
 foreach(EXERCISE ${EXERCISES})
     set(SOURCES src/${EXERCISE}.cpp ${GLAD_C_FILE})
