@@ -20,8 +20,7 @@ using namespace glm;
 
 map<string, string> config;
 
-struct Vertex
-{
+struct Vertex {
     vec3 position;
     vec2 texCoord;
     vec3 normal;
@@ -34,11 +33,18 @@ struct Material {
     float shininess = 32.0f;
 };
 
-struct Modelo
-{
-    GLuint VAO, VBO, textura;
+struct Submesh {
+    vector<Vertex> vertices;
+    GLuint VAO, VBO, textureID;
     int vertexCount;
     Material material;
+};
+
+struct Modelo {
+    GLuint VAO = 0, VBO = 0, textura = 0;
+    int vertexCount = 0;
+    Material material;
+    std::vector<Submesh> partes;
 };
 
 vec3 ka(0.1f), kd(1.0f), ks(0.5f);
@@ -56,6 +62,7 @@ float alturaAbducao = 5.0f, alturaFuga = 15.0f;
 float vacaX = 0.0f;
 float curvaAmplitude = 1.0f; // raio da curva no plano XZ
 
+// ============== CONFIGURATION LOADER ==============
 void loadConfig(const string& filename) {
     ifstream file(filename);
     string line;
@@ -164,9 +171,9 @@ const char *vertexShaderSource = R"(
     out vec3 Normal;
     out vec2 TexCoord;
 
-    uniform mat4 model;
-    uniform mat4 view;
-    uniform mat4 projection;
+    uniform mat4 model; // transformações do objeto
+    uniform mat4 view; // câmera
+    uniform mat4 projection; // perspectiva
 
     void main() {
     FragPos = vec3(model * vec4(position, 1.0));
@@ -192,34 +199,39 @@ const char* fragmentShaderSource = R"(
     uniform vec3 viewPos;
 
     void main() {
-    vec3 ambient = ka * texture(texBuff, TexCoord).rgb;
-
     vec3 baseColor = texture(texBuff, TexCoord).rgb;
+    vec3 ambient = ka * baseColor;
     vec3 norm = normalize(Normal);
     vec3 lightDirection = normalize(lightPos - FragPos);
 
     // Spot cutoff
-    float theta = dot(lightDirection, normalize(-lightDir));
-    float cutoff = 0.85;
-    float outerCutoff = 0.70;
+    float theta = dot(lightDirection, normalize(-lightDir)); // ângulo do cone spotlight
+    float cutoff = 0.85; // ângulo central
+    float outerCutoff = 0.70; // ângulo externo
     float intensity = clamp((theta - outerCutoff) / (cutoff - outerCutoff), 0.0, 1.0);
 
+    // Componente difusa (baseada no ângulo entre luz e normal)
     float diff = max(dot(norm, lightDirection), 0.0);
     vec3 diffuse = kd * diff * baseColor * lightColor * intensity;
 
+    // Vetor da câmera até o fragmento
     vec3 viewDir = normalize(viewPos - FragPos);
+
+    // Direção do reflexo da luz em relação à normal 
     vec3 reflectDir = reflect(-lightDirection, norm);
+
+    // Componente especular (brilho)
     float spec = pow(max(dot(viewDir, reflectDir), 0.0), shininess);
     vec3 specColor = lightColor * 0.4 + vec3(0.2);
     vec3 specular = ks * spec * specColor * intensity;
 
+    // Atenuação da luz com base na distância do ponto à fonte de luz
     float distance = length(lightPos - FragPos);
     float attenuation = 1.0 / (1.0 + 0.05 * distance + 0.01 * distance * distance);
 
     vec3 result = (ambient + diffuse + specular) * attenuation * 2.0;
     FragColor = vec4(result, 1.0);
-}
-    )";
+})";
 
 const char *skyboxVertex = R"(
     #version 450 core
@@ -235,8 +247,7 @@ const char *skyboxVertex = R"(
         );
         gl_Position = vec4(pos[gl_VertexID], 0.0, 1.0);
         TexCoord = tex[gl_VertexID];
-    }
-    )";
+})";
 
 const char *skyboxFragment = R"(
     #version 450 core
@@ -245,8 +256,7 @@ const char *skyboxFragment = R"(
     uniform sampler2D skyTexture;
     void main() {
         FragColor = texture(skyTexture, TexCoord);
-    }
-    )";
+})";
 
 GLuint compileSkyboxShader()
 {
@@ -285,18 +295,28 @@ GLuint compileShader()
 GLuint loadTexture(const string &path) {
     GLuint textureID;
     glGenTextures(1, &textureID);
-    
     int width, height, nrChannels;
     unsigned char* data = stbi_load(path.c_str(), &width, &height, &nrChannels, 0);
 
     if (data) {
-        GLenum format = nrChannels == 4 ? GL_RGBA : GL_RGB;
+        GLenum format;
+        if (nrChannels == 1)
+            format = GL_RED;
+        else if (nrChannels == 3)
+            format = GL_RGB;
+        else if (nrChannels == 4)
+            format = GL_RGBA;
+        else {
+            std::cerr << "Unsupported channel count: " << nrChannels << " in texture " << path << std::endl;
+            stbi_image_free(data);
+            return 0;
+        }
+
         glBindTexture(GL_TEXTURE_2D, textureID);
-        
+
         glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
         glGenerateMipmap(GL_TEXTURE_2D);
-        
-        // Wrapping / Filtering
+
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);	
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
@@ -304,8 +324,8 @@ GLuint loadTexture(const string &path) {
 
         stbi_image_free(data);
     } else {
-        std::cout << "Failed to load texture: " << path << std::endl;
-        stbi_image_free(data);
+        std::cerr << "Failed to load texture: " << path << std::endl;
+        return 0;
     }
 
     return textureID;
@@ -318,7 +338,7 @@ void initSkybox()
     skyboxShader = compileSkyboxShader();
 }
 
-bool loadOBJWithMTL(const string &objPath, const string &mtlDir, vector<Vertex> &outVertices, GLuint &textureID, Material &material)
+bool loadOBJWithMTL(const string& objPath, const string& mtlDir, vector<Submesh>& submeshes)
 {
     ifstream file(objPath);
     if (!file.is_open())
@@ -326,9 +346,12 @@ bool loadOBJWithMTL(const string &objPath, const string &mtlDir, vector<Vertex> 
 
     vector<vec3> positions, normals;
     vector<vec2> texCoords;
-    map<string, string> materials;
-    string activeTexture, line;
-    float Ns;
+    map<string, string> texturesPorMaterial;
+    map<string, Material> materiais;
+
+    string activeMaterial;
+    Submesh submeshAtual;
+    string line;
 
     while (getline(file, line))
     {
@@ -346,7 +369,7 @@ bool loadOBJWithMTL(const string &objPath, const string &mtlDir, vector<Vertex> 
         {
             float u, v;
             iss >> u >> v;
-            texCoords.emplace_back(u, 1.0f - v);  // Corrige o eixo Y
+            texCoords.emplace_back(u, 1.0f - v);
         }
         else if (prefix == "vn")
         {
@@ -359,11 +382,11 @@ bool loadOBJWithMTL(const string &objPath, const string &mtlDir, vector<Vertex> 
             string v1, v2, v3;
             iss >> v1 >> v2 >> v3;
             string vs[] = {v1, v2, v3};
-            for (auto &v : vs)
+            for (auto& v : vs)
             {
                 int p = 0, t = 0, n = 0;
                 sscanf(v.c_str(), "%d/%d/%d", &p, &t, &n);
-                outVertices.push_back({positions[p - 1], texCoords[t - 1], normals[n - 1]});
+                submeshAtual.vertices.push_back({positions[p - 1], texCoords[t - 1], normals[n - 1]});
             }
         }
         else if (prefix == "mtllib")
@@ -372,57 +395,88 @@ bool loadOBJWithMTL(const string &objPath, const string &mtlDir, vector<Vertex> 
             iss >> mtlFile;
             ifstream mtl(mtlDir + "/" + mtlFile);
             string mline, matName;
+
             while (getline(mtl, mline))
             {
                 istringstream mss(mline);
                 string tag;
                 mss >> tag;
-                if (tag == "newmtl")
+
+                if (tag == "newmtl") {
                     mss >> matName;
-                else if (tag == "map_Kd")
-                    mss >> materials[matName];
+                    materiais[matName] = Material(); // inicia material
+                }
                 else if (tag == "Ka")
-                    mss >> material.ka.r >> material.ka.g >> material.ka.b;
+                    mss >> materiais[matName].ka.r >> materiais[matName].ka.g >> materiais[matName].ka.b;
                 else if (tag == "Kd")
-                    mss >> material.kd.r >> material.kd.g >> material.kd.b;
+                    mss >> materiais[matName].kd.r >> materiais[matName].kd.g >> materiais[matName].kd.b;
                 else if (tag == "Ks")
-                    mss >> material.ks.r >> material.ks.g >> material.ks.b;
+                    mss >> materiais[matName].ks.r >> materiais[matName].ks.g >> materiais[matName].ks.b;
                 else if (tag == "Ns")
-                    mss >> material.shininess;
+                    mss >> materiais[matName].shininess;
+                else if (tag == "map_Kd")
+                    mss >> texturesPorMaterial[matName];
             }
         }
         else if (prefix == "usemtl")
         {
-            string name;
-            iss >> name;
-            if (materials.count(name))
-            {
-                activeTexture = materials[name];
-                textureID = loadTexture("../assets/Modelos3D/final/" + activeTexture);
+            if (!submeshAtual.vertices.empty()) {
+                // Finaliza o submesh atual
+                submeshAtual.vertexCount = submeshAtual.vertices.size();
+                submeshes.push_back(submeshAtual);
+                submeshAtual = Submesh();
             }
+
+            string mtlName;
+            iss >> mtlName;
+            activeMaterial = mtlName;
+            submeshAtual.material = materiais[mtlName];
+
+            if (texturesPorMaterial.count(mtlName))
+                submeshAtual.textureID = loadTexture(mtlDir + "/" + texturesPorMaterial[mtlName]);
+            else
+                submeshAtual.textureID = 0;
         }
     }
 
-    return !outVertices.empty();
+    // Adiciona último submesh
+    if (!submeshAtual.vertices.empty()) {
+        submeshAtual.vertexCount = submeshAtual.vertices.size();
+        submeshes.push_back(submeshAtual);
+    }
+
+    // Cria os VAOs e VBOs para cada submesh
+    for (Submesh& s : submeshes) {
+        glGenVertexArrays(1, &s.VAO);
+        glGenBuffers(1, &s.VBO);
+        glBindVertexArray(s.VAO);
+        glBindBuffer(GL_ARRAY_BUFFER, s.VBO);
+        glBufferData(GL_ARRAY_BUFFER, s.vertices.size() * sizeof(Vertex), s.vertices.data(), GL_STATIC_DRAW);
+
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, position));
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, texCoord));
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, normal));
+        glEnableVertexAttribArray(2);
+    }
+
+    return !submeshes.empty();
 }
 
-bool loadModel(const string &path, Modelo &modelo)
-{
-    vector<Vertex> verts;
-    if (!loadOBJWithMTL(path, "../assets/Modelos3D/final", verts, modelo.textura, modelo.material))
+bool loadModel(const string& path, Modelo& modelo) {
+    modelo.partes.clear(); // limpa se já existia algo
+
+    if (!loadOBJWithMTL(path, "../assets/Modelos3D/final", modelo.partes)) {
+        cerr << "Erro ao carregar modelo: " << path << endl;
         return false;
-    modelo.vertexCount = verts.size();
-    glGenVertexArrays(1, &modelo.VAO);
-    glGenBuffers(1, &modelo.VBO);
-    glBindVertexArray(modelo.VAO);
-    glBindBuffer(GL_ARRAY_BUFFER, modelo.VBO);
-    glBufferData(GL_ARRAY_BUFFER, verts.size() * sizeof(Vertex), verts.data(), GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void *)offsetof(Vertex, position));
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void *)offsetof(Vertex, texCoord));
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void *)offsetof(Vertex, normal));
-    glEnableVertexAttribArray(2);
+    }
+
+    modelo.vertexCount = 0;
+    for (Submesh& sub : modelo.partes) {
+        modelo.vertexCount += sub.vertexCount;
+    }
+
     return true;
 }
 
@@ -469,6 +523,20 @@ void carregarJanela(GLFWwindow*& w) {
     string title = getString("window.title", "OVNI vs Vaca");
 
     w = glfwCreateWindow(width, height, title.c_str(), NULL, NULL);
+}
+
+void drawChao(const Modelo& chao, const mat4& model) {
+    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, value_ptr(model));
+    glUniform3fv(glGetUniformLocation(shaderProgram, "ka"), 1, value_ptr(chao.material.ka));
+    glUniform3fv(glGetUniformLocation(shaderProgram, "kd"), 1, value_ptr(chao.material.kd));
+    glUniform3fv(glGetUniformLocation(shaderProgram, "ks"), 1, value_ptr(chao.material.ks));
+    glUniform1f(glGetUniformLocation(shaderProgram, "shininess"), chao.material.shininess);
+
+    glBindVertexArray(chao.VAO);
+    glActiveTexture(GL_TEXTURE0); // ATIVA UNIDADE 0
+    glBindTexture(GL_TEXTURE_2D, chao.textura);
+    glUniform1i(glGetUniformLocation(shaderProgram, "texBuff"), 0);
+    glDrawArrays(GL_TRIANGLES, 0, chao.vertexCount);
 }
 
 int main() {
@@ -620,16 +688,20 @@ int main() {
         // ==== DESENHO ====
         auto draw = [&](Modelo& m, mat4 model) {
             glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, value_ptr(model));
-            glUniform3fv(glGetUniformLocation(shaderProgram, "ka"), 1, value_ptr(m.material.ka));
-            glUniform3fv(glGetUniformLocation(shaderProgram, "kd"), 1, value_ptr(m.material.kd));
-            glUniform3fv(glGetUniformLocation(shaderProgram, "ks"), 1, value_ptr(m.material.ks));
-            glUniform1f(glGetUniformLocation(shaderProgram, "shininess"), m.material.shininess);
-            glBindVertexArray(m.VAO);
-            glBindTexture(GL_TEXTURE_2D, m.textura);
-            glDrawArrays(GL_TRIANGLES, 0, m.vertexCount);
+            
+            for (const Submesh& sub : m.partes) {
+                glUniform3fv(glGetUniformLocation(shaderProgram, "ka"), 1, value_ptr(sub.material.ka));
+                glUniform3fv(glGetUniformLocation(shaderProgram, "kd"), 1, value_ptr(sub.material.kd));
+                glUniform3fv(glGetUniformLocation(shaderProgram, "ks"), 1, value_ptr(sub.material.ks));
+                glUniform1f(glGetUniformLocation(shaderProgram, "shininess"), sub.material.shininess);
+
+                glBindVertexArray(sub.VAO);
+                glBindTexture(GL_TEXTURE_2D, sub.textureID);
+                glDrawArrays(GL_TRIANGLES, 0, sub.vertexCount);
+            }
         };
 
-        draw(chao, mat4(1.0f));
+        drawChao(chao, mat4(1.0f));
         draw(ovni, translate(mat4(1.0f), vec3(0, ovniY, 0)) * rotate(mat4(1.0f), t, vec3(0, 1, 0)));
         draw(casa, translate(mat4(1.0f), vec3(5, 0, -5)));
         // draw(vaca, translate(mat4(1.0f), vec3(vacaX, vacaY, 0)));
