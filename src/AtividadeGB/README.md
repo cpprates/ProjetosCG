@@ -144,6 +144,13 @@ Aqui estão algumas sugestões de evolução para o projeto:
 - stb_image
 - Blender (modelagem e exportação OBJ/MTL)
 
+## 📚 Referências
+
+[INI file](https://en.wikipedia.org/wiki/INI_file)
+[Learn OpenGL Tutoriais](https://learnopengl.com/Code-repository)
+[OpenGL objetos e texturas](https://github.com/srcres258/learnopengl-rust/tree/master)
+[Github Professora Rossana](https://github.com/fellowsheep/CG2024-2/)
+
 ---
 
 ## 👩‍💻 Autoria

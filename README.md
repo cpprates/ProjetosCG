@@ -21,6 +21,14 @@ Os arquivos fonte `.cpp` de cada atividade estão em `/src`.
 ├── 📁 src/AtividadeM5/       // entregue dia 09/06/2025
 ```
 
+### Trabalho Final - Integralização GB
+
+```
+.
+├── 📁 src/AtividadeGB/       // entregue dia 28/06/2025
+```
+
+
 ## Como executar os projetos
 
 Altera o nome do arquivo `.cpp` conforme necessidade
