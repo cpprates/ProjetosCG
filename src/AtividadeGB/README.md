@@ -155,7 +155,6 @@ Aqui estão algumas sugestões de evolução para o projeto:
 
 ## 👩‍💻 Autoria
 
-Projeto desenvolvido por [@cpprates](https://github.com/cpprates), [@kevin-kuhn](https://github.com/kevin-kuhn) e [Vitor Mello]() como prática de conceitos de computação gráfica com foco em animações, modelos 3D e shaders.
+Projeto desenvolvido por [@cpprates](https://github.com/cpprates), [@kevin-kuhn](https://github.com/kevin-kuhn) e [VitorMelloo](https://github.com/VitorMelloo) como prática de conceitos de computação gráfica com foco em animações, modelos 3D e shaders.
 
 ---
-
