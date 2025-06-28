@@ -1,3 +1,7 @@
+// Projeto de integralização do GB da disciplina de Computação Gráfica
+// Desenvolvido por: Carolina Prates, Kevin Kuhn, Vitor Mello
+// Data: 28/06/2025
+
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -56,12 +60,6 @@ Modelo ovni, vaca, casa, chao;
 GLuint skyboxTexture, quadVAO;
 GLuint skyboxShader;
 
-bool casaLuz = false;
-float ovniY = 5.0f, vacaY = 0.0f;
-float alturaAbducao = 5.0f, alturaFuga = 15.0f;
-float vacaX = 0.0f;
-float curvaAmplitude = 1.0f; // raio da curva no plano XZ
-
 // ============== CONFIGURATION LOADER ==============
 void loadConfig(const string& filename) {
     ifstream file(filename);
@@ -102,6 +100,17 @@ vec3 getVec3(const string& key, vec3 def) {
 string getString(const string& key, const string& def) {
     return config.count(key) ? config[key] : def;
 }
+
+bool getBool(const std::string& key, bool def) {
+    if (config.count(key) == 0) return def;
+
+    std::string val = config[key];
+    std::transform(val.begin(), val.end(), val.begin(), ::tolower);
+
+    return (val == "true");
+}
+
+bool casaLuz = getFloat("estado_inicial.casa_luz", true);
 
 // ============== CAMERA ==============
 class Camera
@@ -193,10 +202,12 @@ const char* fragmentShaderSource = R"(
     uniform sampler2D texBuff;
     uniform vec3 ka, kd, ks;
     uniform float shininess;
+    uniform vec3 viewPos;
+
+    // luz do ovni
     uniform vec3 lightPos;
     uniform vec3 lightColor;
     uniform vec3 lightDir;
-    uniform vec3 viewPos;
 
     void main() {
     vec3 baseColor = texture(texBuff, TexCoord).rgb;
@@ -513,7 +524,7 @@ void processInput(GLFWwindow *window)
     if (glfwGetKey(window, GLFW_KEY_H) == GLFW_PRESS)
     {
         casaLuz = !casaLuz;
-        glfwWaitEventsTimeout(0.2);
+        glfwWaitEventsTimeout(0.1);
     }
 }
 
@@ -542,7 +553,6 @@ void drawChao(const Modelo& chao, const mat4& model) {
 int main() {
     glfwInit();
     loadConfig("config.ini");
-    // GLFWwindow* w = glfwCreateWindow(800, 600, "OVNI vs Vaca", NULL, NULL);
     GLFWwindow* w;
     carregarJanela(w);
     glfwMakeContextCurrent(w);
@@ -556,9 +566,9 @@ int main() {
 
     shaderProgram = compileShader();
 
-    alturaAbducao = getFloat("alturas.abducao", 5.0f);
-    alturaFuga = getFloat("alturas.fuga", 15.0f);
-    curvaAmplitude = getFloat("curvas.amplitude", 1.0f);
+    float alturaAbducao = getFloat("alturas.abducao", 5.0f);
+    float alturaFuga = getFloat("alturas.fuga", 15.0f);
+    float curvaAmplitude = getFloat("curvas.amplitude", 1.0f); // raio da curva no plano XZ
 
     initSkybox();
 
@@ -594,12 +604,12 @@ int main() {
     glEnableVertexAttribArray(2);
 
     // ==== ESTADOS INICIAIS ====
-    casaLuz = true;
-    const float ovniTopo = alturaFuga + 5.0f;
-    const float ovniBaixo = alturaAbducao + 1.5f;
-    ovniY = ovniTopo;
-    vacaY = 0.0f;
-    float vacaRot = 0.0f;
+    const float ovniTopo = getFloat("estado_inicial.ovni_topo", (alturaFuga + 5.0f));
+    const float ovniBaixo = getFloat("estado_inicial.ovni_baixo", (alturaAbducao + 1.5f));
+    float ovniY = getFloat("estado_inicial.ovniY", ovniTopo);
+    float vacaY = getFloat("estado_inicial.vacaY", 0.0f);
+    float vacaX = getFloat("estado_inicial.vacaX", 0.0f);
+    float vacaRot = getFloat("estado_inicial.vaca_rot", 0.0f);
 
     while (!glfwWindowShouldClose(w)) {
         processInput(w);
@@ -704,7 +714,6 @@ int main() {
         drawChao(chao, mat4(1.0f));
         draw(ovni, translate(mat4(1.0f), vec3(0, ovniY, 0)) * rotate(mat4(1.0f), t, vec3(0, 1, 0)));
         draw(casa, translate(mat4(1.0f), vec3(5, 0, -5)));
-        // draw(vaca, translate(mat4(1.0f), vec3(vacaX, vacaY, 0)));
 
         vec3 posVaca;
         if (!casaLuz && vacaY >= alturaAbducao) {
@@ -717,12 +726,11 @@ int main() {
         }
         
         mat4 modelVaca = translate(mat4(1.0f), posVaca);
-        // Aplica rotação na vaca apenas quando caindo (casaLuz == true)
+        // Aplica rotação na vaca apenas quando estiver caindo (casaLuz == true)
         if (casaLuz && vacaY < alturaAbducao && vacaY > 0.0f)
             modelVaca = modelVaca * rotate(mat4(1.0f), vacaRot, vec3(1, 0, 0));
 
         draw(vaca, modelVaca);
-        // draw(vaca, translate(mat4(1.0f), posVaca));
 
         glfwSwapBuffers(w);
     }
