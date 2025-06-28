@@ -10,7 +10,7 @@ Alunos: Carolina Paz Prates, Kevin Mulinari Kuhn, Vitor Mello
 .
 ├── 📁 src/CenaFinal.cpp                // Código-fonte da Cena
 ├── 📁 src/AtividadeGB/                 // README.md & imagens & documentos
-├── 📁 src/assets/Modelos3D/final/      // Objetos utilizados
+├── 📁 assets/Modelos3D/final/          // Objetos utilizados
 
 ```
 
